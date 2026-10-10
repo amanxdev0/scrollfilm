@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>scrollfilm — minimal example</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #05070f; color: #eef4f8; font-family: system-ui, sans-serif; overflow-x: hidden; }
+  #film { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  main { position: relative; z-index: 2; }
+  .chapter { min-height: 120vh; position: relative; }
+  .chapter-inner {
+    position: sticky; top: 0; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 0 6vw;
+    opacity: 0; transform: translateY(30px); transition: opacity .7s ease, transform .7s ease;
+  }
+  .chapter.is-active .chapter-inner { opacity: 1; transform: none; }
+  h1 { font-size: clamp(2.5rem, 8vw, 5rem); margin: 0 0 1rem; text-shadow: 0 2px 40px rgba(0,0,0,.8); }
+  p { max-width: 32em; line-height: 1.6; color: #c6d2dd; text-shadow: 0 2px 20px rgba(0,0,0,.9); }
+  .hud { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: .7rem 1.2rem .9rem; pointer-events: none;
+    background: linear-gradient(transparent, rgba(0,0,0,.55)); font-size: .75rem; letter-spacing: .25em; text-transform: uppercase; }
+  .hud-row { display: flex; gap: 1rem; align-items: baseline; margin-bottom: .5rem; color: #9db4c4; }
+  .hud-title { color: #fff; font-weight: 700; }
+  .hud-stop { color: #4de3d1; }
+  .hud-fps { margin-left: auto; font-family: monospace; }
+  .hud-track { position: relative; height: 3px; background: rgba(255,255,255,.14); border-radius: 2px; }
+  .hud-bar { position: absolute; inset: 0 auto 0 0; width: 0; background: #4de3d1; border-radius: 2px; }
+  .hud-knob { position: absolute; top: 50%; left: 0; width: 11px; height: 11px; border-radius: 50%;
+    background: #fff; transform: translate(-50%,-50%); box-shadow: 0 0 10px rgba(77,227,209,.9); }
+  body.no-webgl .chapter-inner { opacity: 1; transform: none; }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "scrollfilm": "../../src/scrollfilm.js"
+} }
+</script>
+</head>
+<body>
+<canvas id="film"></canvas>
+
+<div class="hud">
+  <div class="hud-row">
+    <span class="hud-title">MINIMAL</span>
+    <span class="hud-stop" id="hudZone">—</span>
+    <span class="hud-fps hud-fps" id="hudFps">-- FPS</span>
+  </div>
+  <div class="hud-track"><div class="hud-bar" id="hudBar"></div><div class="hud-knob" id="hudKnob"></div></div>
+</div>
+
+<main>
+  <section class="chapter"><div class="chapter-inner">
+    <h1>The Beacon</h1>
+    <p>A single glowing shape, waiting in the dark. Scroll — the camera is already moving.</p>
+  </div></section>
+  <section class="chapter"><div class="chapter-inner">
+    <h1>The Approach</h1>
+    <p>Stops pin the camera to chapters. Two stops in one chapter make a push-in shot.</p>
+  </div></section>
+  <section class="chapter"><div class="chapter-inner">
+    <h1>The Field</h1>
+    <p>Everything you see is drawn in <code>onFrame</code> — the library handles scroll, chapters, HUD and quality. You handle the wonder.</p>
+  </div></section>
+</main>
+
+<div id="nogl" hidden><p style="text-align:center">WebGL isn't available — but the words are still here.</p></div>
+
+<script type="module">
+import { ScrollFilm, env, rnd } from 'scrollfilm';
+
+const film = new ScrollFilm({
+  canvas: '#film',
+  stops: [
+    { chapter: 0, at: 0.5, name: 'THE BEACON', camera: { pos: [0, 6, 42], look: [0, 0, 0] } },
+    { chapter: 1, at: 0.3, name: 'THE APPROACH', camera: { pos: [-14, 3, 26], look: [0, 0, 0] } },
+    { chapter: 1, at: 0.8, name: 'THE APPROACH', camera: { pos: [6, -2, 14], look: [0, 0, 0] } },
+    { chapter: 2, at: 0.5, name: 'THE FIELD', camera: { pos: [0, 18, 60], look: [0, 0, 0] } },
+  ],
+  background: [
+    { p: 0.0, color: 0x0a1030 },
+    { p: 0.5, color: 0x0a1a3a },
+    { p: 1.0, color: 0x02040c },
+  ],
+  fog: { near: [60, 30], far: [220, 120], range: [0.4, 0.9] },
+
+  onFrame: (p, t, api) => {
+    const { scene, THREE } = api;
+
+    // build once
+    if (!api._built) {
+      api._built = true;
+      const core = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(4, 1),
+        new THREE.MeshBasicMaterial({ color: 0x4de3d1, wireframe: true, transparent: true, opacity: 0.9 })
+      );
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: makeGlow(), color: 0x4de3d1, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      glow.scale.set(22, 22, 1);
+      const stars = (() => {
+        const n = 700, pos = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          pos[i*3] = rnd(-160, 160); pos[i*3+1] = rnd(-80, 80); pos[i*3+2] = rnd(-160, 40);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        return new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9fd8ff, size: 1.2, transparent: true, opacity: 0.7 }));
+      })();
+      scene.add(core, glow, stars);
+      api._core = core; api._glow = glow; api._stars = stars;
+
+      function makeGlow() {
+        const c = document.createElement('canvas'); c.width = c.height = 128;
+        const g2 = c.getContext('2d');
+        const gr = g2.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gr.addColorStop(0, 'rgba(255,255,255,1)');
+        gr.addColorStop(1, 'rgba(255,255,255,0)');
+        g2.fillStyle = gr; g2.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(c);
+      }
+    }
+
+    api._core.rotation.y = t * 0.25;
+    api._core.rotation.x = Math.sin(t * 0.2) * 0.3;
+    api._glow.material.opacity = 0.4 + 0.15 * Math.sin(t * 2);
+    // the beacon dissolves as you leave it behind
+    const e = env(p, 0.55, 0.7, 0.9, 1.0);
+    api._core.material.opacity = 0.9 * (1 - e * 0.7);
+    api._stars.rotation.y = t * 0.01;
+  },
+});
+</script>
+</body>
+</html>
