@@ -136,7 +136,7 @@ Also exported for your scene code: `clamp01`, `lerp`, `sstep`, `env(p, a, b, c, 
 ## Built with scrollfilm
 
 - [HELIOS](https://amanxdev0.github.io/helios/) — a 3D voyage from the Milky Way to Pluto
-- [ABYSS](https://amanxdev0.github.io/abyss/) — a descent to Challenger Deep
+- [ABYSS](https://amanxdev0.github.io/ABYSS/) — a descent to Challenger Deep
 - [SCROLLFILM](https://amanxdev0.github.io/scrollfilm-3d/) — the original cinematic engine demo
 
 *Made something? Open a PR and add it to this list.*
